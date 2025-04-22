@@ -1,6 +1,6 @@
 const express = require("express");
-const db = require('../db/db.js'); 
-
+const db = require("../db/db.js");
+const axios = require("axios");
 const router = express.Router();
 
 // Create Payment Endpoint
@@ -14,6 +14,14 @@ router.post("/create", async (req, res) => {
   }
 
   try {
+    //calling auth service to check if user is exist
+    const userResponse = await axios.get(
+      `http://localhost:8080/api/auth/user/${user_id}`
+    );
+    const user = userResponse.data;
+    if (!user) {
+      return res.status(404).send("User not found in Auth Service");
+    }
     // Call stored procedure
     const [result] = await db.query("CALL InsertPayment(?, ?, ?)", [
       user_id,
@@ -46,12 +54,18 @@ router.get("/:payment_id", async (req, res) => {
   try {
     const [rows] = await db.query("CALL getPaymentById(?)", [payment_id]);
 
-    const data = rows[0];
-    if (data.length === 0) {
+    const paymentdata = rows[0][0];
+    if (!paymentdata) {
       return res.status(404).send("Payment not found.");
     }
-
-    res.json(data[0]);
+// Get user info from Auth service
+   const userResponse = await axios.get(`http://localhost:8080/api/auth/user/${paymentdata.user_id}`);
+   const user = userResponse.data;
+    // res.json(data[0]);
+    res.json({
+      ...paymentdata,
+      user
+    });
   } catch (error) {
     console.error(error);
     res.status(500).send("Error fetching payment: " + error.message);
